@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>提案審查分析系統</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600;700&family=Noto+Sans+TC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg: #0f1117;
+  --surface: #161b27;
+  --surface2: #1c2333;
+  --border: rgba(255,255,255,0.07);
+  --text: #e2e8f0;
+  --text-muted: #64748b;
+  --text-dim: #94a3b8;
+  --accent: #63b3ed;
+  --gold: #f6c90e;
+  --green: #48bb78;
+  --red: #fc8181;
+  --orange: #f6ad55;
+  --purple: #b794f4;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body { font-family: 'Noto Sans TC', sans-serif; background: var(--bg); color: var(--text); }
+
+/* ── Top Bar ── */
+.topbar {
+  height: 52px; background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 20px; gap: 16px; flex-shrink: 0;
+}
+.logo { display: flex; align-items: center; gap: 10px; }
+.logo-icon {
+  width: 28px; height: 28px;
+  background: linear-gradient(135deg, #63b3ed, #4299e1);
+  border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 14px;
+}
+.logo-text { font-family: 'Noto Serif TC', serif; font-size: 15px; font-weight: 700; letter-spacing: 2px; }
+.topbar-sep { flex: 1; }
+.topbar-hint { font-size: 11px; color: var(--text-muted); letter-spacing: 1px; }
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--green); display: inline-block; margin-right: 6px;
+  box-shadow: 0 0 6px var(--green);
+}
+
+/* ── Layout ── */
+.app { display: grid; grid-template-columns: 340px 1fr; height: calc(100vh - 52px); }
+
+/* ── Left ── */
+.left { background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+.left-scroll { flex: 1; overflow-y: auto; padding: 16px; }
+
+.upload-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 10px; overflow: hidden; transition: border-color 0.2s; }
+.card-head { padding: 10px 14px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; }
+.card-head:hover { background: rgba(255,255,255,0.02); }
+.card-num { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; border: 1px solid currentColor; }
+.num-1 { color: var(--accent); } .num-2 { color: var(--purple); } .num-3 { color: var(--gold); }
+.card-title-wrap { flex: 1; }
+.card-title { font-size: 13px; font-weight: 500; line-height: 1; margin-bottom: 2px; }
+.card-subtitle { font-size: 10px; color: var(--text-muted); }
+.card-status { font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 500; white-space: nowrap; }
+.status-empty { background: rgba(255,255,255,0.05); color: var(--text-muted); }
+.status-ok { background: rgba(72,187,120,0.15); color: var(--green); }
+
+.card-body { padding: 12px 14px; }
+.drop-zone { border: 1px dashed rgba(255,255,255,0.12); border-radius: 6px; padding: 16px; text-align: center; cursor: pointer; transition: all 0.2s; }
+.drop-zone:hover, .drop-zone.dragover { border-color: var(--accent); background: rgba(99,179,237,0.05); }
+.drop-zone-icon { font-size: 22px; margin-bottom: 6px; display: block; }
+.drop-zone-text { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+.drop-zone-text strong { color: var(--text-dim); }
+.drop-zone-fmt { font-size: 10px; color: rgba(255,255,255,0.2); margin-top: 4px; }
+input[type=file] { display: none; }
+
+.file-chip { display: none; align-items: center; gap: 8px; background: rgba(72,187,120,0.08); border: 1px solid rgba(72,187,120,0.2); border-radius: 6px; padding: 8px 10px; }
+.file-chip.show { display: flex; }
+.chip-icon { font-size: 16px; flex-shrink: 0; }
+.chip-meta { flex: 1; min-width: 0; }
+.chip-name { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chip-size { font-size: 10px; color: var(--text-muted); }
+.chip-del { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 14px; padding: 0; }
+.chip-del:hover { color: var(--red); }
+
+.preview-toggle { margin-top: 6px; font-size: 10px; color: var(--text-muted); cursor: pointer; text-decoration: underline; display: none; }
+.preview-toggle.show { display: block; }
+.file-preview { margin-top: 6px; max-height: 80px; overflow: hidden; font-size: 10px; color: rgba(255,255,255,0.2); font-family: 'JetBrains Mono', monospace; line-height: 1.6; white-space: pre-wrap; word-break: break-all; position: relative; }
+.file-preview::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 24px; background: linear-gradient(transparent, var(--surface2)); }
+
+.prompt-section { padding: 0 16px 12px; }
+.prompt-label { font-size: 10px; letter-spacing: 2px; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; }
+.prompt-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px 10px; font-size: 12px; font-family: 'Noto Sans TC', sans-serif; border-radius: 6px; resize: vertical; min-height: 60px; outline: none; line-height: 1.6; transition: border-color 0.2s; }
+.prompt-input:focus { border-color: var(--accent); }
+.prompt-input::placeholder { color: var(--text-muted); }
+
+.run-section { padding: 12px 16px; border-top: 1px solid var(--border); flex-shrink: 0; }
+.btn-run { width: 100%; background: linear-gradient(135deg, #2b6cb0, #3182ce); border: none; color: #fff; padding: 13px; font-size: 14px; font-family: 'Noto Serif TC', serif; letter-spacing: 3px; border-radius: 6px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.btn-run:hover:not(:disabled) { background: linear-gradient(135deg, #3182ce, #4299e1); }
+.btn-run:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.progress-bar { height: 2px; background: var(--border); border-radius: 1px; margin-top: 8px; overflow: hidden; display: none; }
+.progress-bar.show { display: block; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--purple)); border-radius: 1px; }
+.progress-fill.running { width: 30%; animation: pslide 1.5s ease-in-out infinite; }
+@keyframes pslide { 0% { transform: translateX(-150%); } 100% { transform: translateX(450%); } }
+
+.err-msg { font-size: 11px; color: var(--red); margin-top: 6px; line-height: 1.5; display: none; }
+.err-msg.show { display: block; }
+
+/* ── Right ── */
+.right { display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
+.result-topbar { height: 44px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 20px; gap: 12px; flex-shrink: 0; }
+.result-title { font-size: 12px; letter-spacing: 2px; color: var(--text-muted); text-transform: uppercase; flex: 1; }
+.tab-btns { display: flex; gap: 4px; }
+.tab-btn { background: none; border: 1px solid transparent; color: var(--text-muted); padding: 4px 12px; font-size: 11px; font-family: 'Noto Sans TC', sans-serif; cursor: pointer; border-radius: 4px; letter-spacing: 1px; transition: all 0.15s; }
+.tab-btn:hover { color: var(--text-dim); }
+.tab-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(99,179,237,0.1); }
+.action-btns { display: flex; gap: 6px; }
+.btn-sm { background: rgba(255,255,255,0.06); border: 1px solid var(--border); color: var(--text-muted); padding: 4px 12px; font-size: 11px; font-family: 'Noto Sans TC', sans-serif; cursor: pointer; border-radius: 4px; letter-spacing: 1px; transition: all 0.15s; }
+.btn-sm:hover { color: var(--text); background: rgba(255,255,255,0.1); }
+.btn-sm:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.result-body { flex: 1; overflow-y: auto; padding: 32px 40px; }
+
+.empty { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text-muted); text-align: center; }
+.empty-icon { font-size: 48px; opacity: 0.2; margin-bottom: 8px; }
+.empty h3 { font-size: 15px; color: var(--text-dim); font-weight: 500; }
+.empty p { font-size: 13px; line-height: 1.7; max-width: 340px; }
+.step-list { margin-top: 20px; display: flex; flex-direction: column; gap: 6px; text-align: left; }
+.step-item { display: flex; align-items: flex-start; gap: 10px; font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+.step-dot { width: 18px; height: 18px; border-radius: 50%; background: var(--surface2); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+
+/* ── Result ── */
+.result-doc { max-width: 800px; margin: 0 auto; }
+
+.review-banner { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px 24px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; animation: fadeUp 0.3s ease forwards; }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+.banner-left h2 { font-family: 'Noto Serif TC', serif; font-size: 18px; font-weight: 700; letter-spacing: 3px; margin-bottom: 6px; }
+.banner-meta { display: flex; gap: 16px; font-size: 11px; color: var(--text-muted); }
+.meta-item { display: flex; align-items: center; gap: 4px; }
+
+.verdict-badge { font-family: 'Noto Serif TC', serif; font-size: 13px; font-weight: 700; letter-spacing: 2px; padding: 8px 16px; border-radius: 6px; border: 1px solid currentColor; white-space: nowrap; }
+.verdict-pass { color: var(--green); background: rgba(72,187,120,0.08); }
+.verdict-warn { color: var(--orange); background: rgba(246,173,85,0.08); }
+.verdict-fail { color: var(--red); background: rgba(252,129,129,0.08); }
+
+.rsection { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 12px; overflow: hidden; animation: fadeUp 0.35s ease forwards; opacity: 0; }
+.rsection:nth-child(2) { animation-delay: 0.04s; }
+.rsection:nth-child(3) { animation-delay: 0.08s; }
+.rsection:nth-child(4) { animation-delay: 0.12s; }
+.rsection:nth-child(5) { animation-delay: 0.16s; }
+.rsection:nth-child(6) { animation-delay: 0.20s; }
+
+.rsection-head { padding: 12px 16px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); background: var(--surface2); }
+.rtag { font-size: 10px; font-weight: 700; letter-spacing: 1.5px; padding: 2px 8px; border-radius: 4px; white-space: nowrap; }
+.rtag-comply { background: rgba(72,187,120,0.15); color: var(--green); }
+.rtag-noncomply { background: rgba(252,129,129,0.15); color: var(--red); }
+.rtag-inconsist { background: rgba(246,173,85,0.15); color: var(--orange); }
+.rtag-finding { background: rgba(183,148,244,0.15); color: var(--purple); }
+.rtag-summary { background: rgba(99,179,237,0.15); color: var(--accent); }
+.rtag-neutral { background: rgba(255,255,255,0.06); color: var(--text-muted); }
+.rsection-title { font-size: 14px; font-weight: 500; color: var(--text); letter-spacing: 0.5px; flex: 1; }
+.rsection-count { font-size: 11px; color: var(--text-muted); background: rgba(255,255,255,0.05); padding: 2px 8px; border-radius: 20px; }
+.rsection-body { padding: 16px; }
+
+.issue-item { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 8px; overflow: hidden; }
+.issue-item:last-child { margin-bottom: 0; }
+.issue-head { padding: 10px 12px; display: flex; align-items: flex-start; gap: 10px; border-bottom: 1px solid var(--border); }
+.issue-num { width: 20px; height: 20px; border-radius: 4px; background: var(--surface2); font-size: 10px; font-weight: 700; font-family: 'JetBrains Mono', monospace; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--text-muted); margin-top: 1px; }
+.issue-title { font-size: 13px; color: var(--text); font-weight: 500; flex: 1; line-height: 1.5; }
+.issue-loc { font-size: 10px; font-family: 'JetBrains Mono', monospace; color: var(--accent); background: rgba(99,179,237,0.08); padding: 2px 8px; border-radius: 4px; white-space: nowrap; flex-shrink: 0; }
+.issue-body { padding: 10px 12px; font-size: 12px; color: var(--text-muted); line-height: 1.8; }
+
+.stream-box { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 16px; font-size: 13px; color: var(--text-muted); line-height: 1.9; white-space: pre-wrap; word-break: break-word; min-height: 80px; }
+
+::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+
+@media print {
+  .left, .topbar, .result-topbar { display: none !important; }
+  .app { display: block; height: auto; } .right { overflow: visible; } .result-body { overflow: visible; padding: 0; }
+  body { background: white; color: black; }
+  .rsection, .review-banner { background: white; border-color: #ddd; } .issue-item { background: #f9f9f9; }
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo">
+    <div class="logo-icon">🔍</div>
+    <div class="logo-text">提案審查分析系統</div>
+  </div>
+  <div class="topbar-sep"></div>
+  <div class="topbar-hint"><span class="status-dot"></span>系統就緒，無需 API Key</div>
+</div>
+
+<div class="app">
+  <div class="left">
+    <div class="left-scroll">
+
+      <!-- Card 1 -->
+      <div class="upload-card">
+        <div class="card-head">
+          <div class="card-num num-1">1</div>
+          <div class="card-title-wrap">
+            <div class="card-title">徵求資料（需求說明）</div>
+            <div class="card-subtitle">計畫規定、指標需求、評審基準</div>
+          </div>
+          <span class="card-status status-empty" id="status1">未上傳</span>
+        </div>
+        <div class="card-body">
+          <div class="drop-zone" id="drop1" onclick="document.getElementById('file1').click()" ondragover="dOver(event,'drop1')" ondragleave="dLeave('drop1')" ondrop="dDrop(event,1)">
+            <span class="drop-zone-icon">📋</span>
+            <div class="drop-zone-text"><strong>點擊上傳</strong>或拖曳至此</div>
+            <div class="drop-zone-fmt">.docx · .pdf · .txt</div>
+          </div>
+          <input type="file" id="file1" accept=".docx,.pdf,.txt" onchange="handleFile(event,1)">
+          <div class="file-chip" id="chip1">
+            <span class="chip-icon" id="cicon1">📄</span>
+            <div class="chip-meta"><div class="chip-name" id="cname1"></div><div class="chip-size" id="csize1"></div></div>
+            <button class="chip-del" onclick="removeFile(1)">✕</button>
+          </div>
+          <div class="preview-toggle" id="ptoggle1" onclick="togglePreview(1)">▾ 顯示內容預覽</div>
+          <div class="file-preview" id="preview1" style="display:none"></div>
+        </div>
+      </div>
+
+      <!-- Card 2 -->
+      <div class="upload-card">
+        <div class="card-head">
+          <div class="card-num num-2">2</div>
+          <div class="card-title-wrap">
+            <div class="card-title">廠商提案文件</div>
+            <div class="card-subtitle">簡報、計畫書、執行構想、KPI</div>
+          </div>
+          <span class="card-status status-empty" id="status2">未上傳</span>
+        </div>
+        <div class="card-body">
+          <div class="drop-zone" id="drop2" onclick="document.getElementById('file2').click()" ondragover="dOver(event,'drop2')" ondragleave="dLeave('drop2')" ondrop="dDrop(event,2)">
+            <span class="drop-zone-icon">📁</span>
+            <div class="drop-zone-text"><strong>點擊上傳</strong>或拖曳至此</div>
+            <div class="drop-zone-fmt">.docx · .pdf · .txt</div>
+          </div>
+          <input type="file" id="file2" accept=".docx,.pdf,.txt" onchange="handleFile(event,2)">
+          <div class="file-chip" id="chip2">
+            <span class="chip-icon" id="cicon2">📄</span>
+            <div class="chip-meta"><div class="chip-name" id="cname2"></div><div class="chip-size" id="csize2"></div></div>
+            <button class="chip-del" onclick="removeFile(2)">✕</button>
+          </div>
+          <div class="preview-toggle" id="ptoggle2" onclick="togglePreview(2)">▾ 顯示內容預覽</div>
+          <div class="file-preview" id="preview2" style="display:none"></div>
+        </div>
+      </div>
+
+      <!-- Card 3 -->
+      <div class="upload-card">
+        <div class="card-head">
+          <div class="card-num num-3">3</div>
+          <div class="card-title-wrap">
+            <div class="card-title">審查報告格式（選填）</div>
+            <div class="card-subtitle">指定輸出格式範本</div>
+          </div>
+          <span class="card-status status-empty" id="status3">未上傳（可略）</span>
+        </div>
+        <div class="card-body">
+          <div class="drop-zone" id="drop3" onclick="document.getElementById('file3').click()" ondragover="dOver(event,'drop3')" ondragleave="dLeave('drop3')" ondrop="dDrop(event,3)">
+            <span class="drop-zone-icon">📝</span>
+            <div class="drop-zone-text"><strong>點擊上傳</strong>或拖曳至此</div>
+            <div class="drop-zone-fmt">.docx · .pdf · .txt（可略過）</div>
+          </div>
+          <input type="file" id="file3" accept=".docx,.pdf,.txt" onchange="handleFile(event,3)">
+          <div class="file-chip" id="chip3">
+            <span class="chip-icon" id="cicon3">📄</span>
+            <div class="chip-meta"><div class="chip-name" id="cname3"></div><div class="chip-size" id="csize3"></div></div>
+            <button class="chip-del" onclick="removeFile(3)">✕</button>
+          </div>
+          <div class="preview-toggle" id="ptoggle3" onclick="togglePreview(3)">▾ 顯示內容預覽</div>
+          <div class="file-preview" id="preview3" style="display:none"></div>
+        </div>
+      </div>
+
+      <div class="prompt-section" style="margin-top:4px;">
+        <div class="prompt-label">補充審查重點（選填）</div>
+        <textarea class="prompt-input" id="extraPrompt" placeholder="例如：請特別留意第三期里程碑、請確認是否符合數位部補助原則…"></textarea>
+      </div>
+    </div>
+
+    <div class="run-section">
+      <div class="err-msg" id="errMsg"></div>
+      <button class="btn-run" id="runBtn" onclick="startReview()" disabled>
+        <span>🔍</span><span>開始審查</span>
+      </button>
+      <div class="progress-bar" id="progressBar">
+        <div class="progress-fill running" id="progressFill"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right -->
+  <div class="right">
+    <div class="result-topbar">
+      <div class="result-title">審查結果</div>
+      <div class="tab-btns">
+        <button class="tab-btn active" id="tab-all" onclick="switchTab('all')">全部</button>
+        <button class="tab-btn" id="tab-comply" onclick="switchTab('comply')">符合度</button>
+        <button class="tab-btn" id="tab-inconsist" onclick="switchTab('inconsist')">一致性</button>
+        <button class="tab-btn" id="tab-finding" onclick="switchTab('finding')">發現事項</button>
+      </div>
+      <div class="action-btns">
+        <button class="btn-sm" id="copyBtn" onclick="doCopy()" disabled>複製</button>
+        <button class="btn-sm" id="printBtn" onclick="window.print()" disabled>列印</button>
+      </div>
+    </div>
+
+    <div class="result-body" id="resultBody">
+      <div class="empty" id="emptyState">
+        <div class="empty-icon">🗂️</div>
+        <h3>提案審查分析系統</h3>
+        <p>請上傳徵求資料與廠商提案，系統將自動對照審查並產出結構化意見。</p>
+        <div class="step-list">
+          <div class="step-item"><div class="step-dot" style="color:var(--accent);border-color:var(--accent)">1</div><span>上傳<strong style="color:var(--text-dim)">徵求資料</strong>（規定、指標、評審基準）</span></div>
+          <div class="step-item"><div class="step-dot" style="color:var(--purple);border-color:var(--purple)">2</div><span>上傳<strong style="color:var(--text-dim)">廠商提案文件</strong>（計畫書、簡報）</span></div>
+          <div class="step-item"><div class="step-dot" style="color:var(--gold);border-color:var(--gold)">3</div><span>選擇性上傳<strong style="color:var(--text-dim)">輸出格式範本</strong></span></div>
+          <div class="step-item"><div class="step-dot">▶</div><span>點擊「開始審查」，AI 自動對照分析</span></div>
+        </div>
+      </div>
+      <div class="result-doc" id="resultDoc" style="display:none"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const texts = {1:'',2:'',3:''}, files = {1:null,2:null,3:null};
+let reviewing = false, currentTab = 'all', resultRaw = '';
+
+function toggleApi(){} // no-op, no key needed
+
+function dOver(e,id){e.preventDefault();document.getElementById(id).classList.add('dragover');}
+function dLeave(id){document.getElementById(id).classList.remove('dragover');}
+function dDrop(e,n){e.preventDefault();dLeave('drop'+n);const f=e.dataTransfer.files[0];if(f)processFile(f,n);}
+function handleFile(e,n){const f=e.target.files[0];if(f)processFile(f,n);}
+
+async function processFile(f,n){
+  setStatus(n,'loading','解析中…'); showErr('');
+  const ext=f.name.split('.').pop().toLowerCase();
+  const icons={docx:'📘',pdf:'📕',txt:'📄'};
+  try{
+    let text='';
+    if(ext==='txt') text=await readText(f);
+    else if(ext==='pdf') text=await readPDF(f);
+    else if(ext==='docx') text=await readDOCX(f);
+    else{showErr('不支援的格式：'+ext);setStatus(n,'empty','未上傳');return;}
+    if(text.trim().length<10){showErr('無法擷取文字，請確認非掃描式PDF。');setStatus(n,'empty','未上傳');return;}
+    texts[n]=text; files[n]=f;
+    document.getElementById('cicon'+n).textContent=icons[ext]||'📄';
+    document.getElementById('cname'+n).textContent=f.name;
+    document.getElementById('csize'+n).textContent=fmtSize(f.size)+' · '+text.length.toLocaleString()+' 字';
+    document.getElementById('chip'+n).classList.add('show');
+    document.getElementById('drop'+n).style.display='none';
+    document.getElementById('preview'+n).textContent=text.substring(0,600);
+    document.getElementById('ptoggle'+n).classList.add('show');
+    setStatus(n,'ok','已上傳');
+  }catch(err){showErr('解析失敗：'+err.message);setStatus(n,'empty','未上傳');}
+  checkReady();
+}
+
+function removeFile(n){
+  texts[n]='';files[n]=null;
+  document.getElementById('chip'+n).classList.remove('show');
+  document.getElementById('drop'+n).style.display='';
+  document.getElementById('preview'+n).style.display='none';
+  document.getElementById('ptoggle'+n).classList.remove('show');
+  document.getElementById('file'+n).value='';
+  setStatus(n,'empty',n===3?'未上傳（可略）':'未上傳');
+  checkReady();
+}
+
+function togglePreview(n){
+  const el=document.getElementById('preview'+n),tog=document.getElementById('ptoggle'+n);
+  if(el.style.display==='none'){el.style.display='block';tog.textContent='▴ 隱藏內容預覽';}
+  else{el.style.display='none';tog.textContent='▾ 顯示內容預覽';}
+}
+
+function setStatus(n,type,text){
+  const el=document.getElementById('status'+n);
+  el.className='card-status status-'+type; el.textContent=text;
+}
+
+function readText(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=()=>rej(new Error('讀取失敗'));r.readAsText(f,'UTF-8');});}
+
+async function readPDF(f){
+  const lib=window['pdfjs-dist/build/pdf'];
+  lib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const buf=await f.arrayBuffer();
+  const pdf=await lib.getDocument({data:buf}).promise;
+  let t='';
+  for(let i=1;i<=Math.min(pdf.numPages,40);i++){
+    const page=await pdf.getPage(i);
+    const c=await page.getTextContent();
+    t+=`[第${i}頁]\n`+c.items.map(x=>x.str).join(' ')+'\n\n';
+  }
+  return t;
+}
+
+async function readDOCX(f){const buf=await f.arrayBuffer();const r=await mammoth.extractRawText({arrayBuffer:buf});return r.value;}
+function fmtSize(b){if(b<1024)return b+'B';if(b<1048576)return(b/1024).toFixed(1)+'KB';return(b/1048576).toFixed(1)+'MB';}
+function checkReady(){document.getElementById('runBtn').disabled=!(texts[1].trim().length>10&&texts[2].trim().length>10)||reviewing;}
+function showErr(msg){const el=document.getElementById('errMsg');el.textContent=msg;el.classList.toggle('show',!!msg);}
+
+function switchTab(tab){
+  currentTab=tab;
+  ['all','comply','inconsist','finding'].forEach(t=>document.getElementById('tab-'+t).classList.toggle('active',t===tab));
+  document.querySelectorAll('.rsection[data-category]').forEach(el=>{el.style.display=tab==='all'||el.dataset.category===tab?'':'none';});
+}
+
+async function startReview(){
+  if(reviewing)return;
+  reviewing=true; showErr('');
+  const extra=document.getElementById('extraPrompt').value.trim();
+  document.getElementById('runBtn').disabled=true;
+  document.getElementById('progressBar').classList.add('show');
+  document.getElementById('emptyState').style.display='none';
+  document.getElementById('resultDoc').style.display='none';
+  document.getElementById('copyBtn').disabled=true;
+  document.getElementById('printBtn').disabled=true;
+
+  const trunc=(s,n)=>s.length>n?s.substring(0,n)+'\n\n[...內容過長已截斷]':s;
+  const rfp=trunc(texts[1],12000), prop=trunc(texts[2],16000), fmt=texts[3]?trunc(texts[3],4000):'';
+
+  const systemPrompt=`你是一位資深政府採購與計畫審查專家，擅長對照徵求說明書逐項檢核廠商提案。
+
+${fmt?`【輸出格式要求】\n請依照以下格式範本撰寫：\n${fmt}\n\n`:''}請依以下架構輸出，每個段落以【】標示：
+
+【審查摘要】
+以3-5句話概述整體發現，包含主要優缺點。最後給出明確結論：「建議通過」、「建議補件修正後再審」或「建議退件」，並說明核心理由。
+
+【4.1 符合度審查｜提案符合徵求要求之項目】
+列出提案中有充分回應徵求要求的項目，標示對應頁碼或章節。
+
+【4.1 符合度審查｜提案不符合或未回應徵求要求之項目】
+針對每一個不符合項目：
+- 指出徵求資料的具體要求（含頁碼/章節）
+- 說明提案的實際內容（含頁碼/章節）
+- 說明差距與不符合原因
+
+【4.2 前後一致性審查】
+針對提案內部前後矛盾、數字不一致、描述衝突之處，指出矛盾的兩處位置（含頁碼/章節）並說明具體矛盾內容。若無明顯矛盾，請明確說明「本提案前後敘述整體一致，未發現明顯矛盾」。
+
+【4.3 審查發現事項】
+提出潛在執行風險、概念模糊或定義不清之處、值得肯定的亮點、建議補強的方向。
+
+${extra?`【額外審查重點】\n${extra}`:''}
+
+請使用正式、客觀語氣。每項意見必須具體指出頁碼或章節。`;
+
+  const userMsg=`【徵求資料】：\n${rfp}\n\n${'═'.repeat(40)}\n\n【廠商提案文件】：\n${prop}\n\n請依照指示進行全面審查。`;
+
+  try{
+    const resp=await fetch('/api/review',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:4000,
+        stream:true,
+        system:systemPrompt,
+        messages:[{role:'user',content:userMsg}]
+      })
+    });
+
+    if(!resp.ok){
+      let msg='伺服器錯誤';
+      try{const e=await resp.json();msg=e.error||msg;}catch{}
+      throw new Error(msg);
+    }
+
+    const doc=document.getElementById('resultDoc');
+    doc.style.display='block';
+    doc.innerHTML=renderBanner();
+
+    const reader=resp.body.getReader(),decoder=new TextDecoder();
+    let fullText='',buf='';
+
+    while(true){
+      const{done,value}=await reader.read();
+      if(done)break;
+      buf+=decoder.decode(value,{stream:true});
+      const lines=buf.split('\n'); buf=lines.pop();
+      for(const line of lines){
+        if(!line.startsWith('data: '))continue;
+        const data=line.slice(6).trim();
+        if(data==='[DONE]')continue;
+        try{const p=JSON.parse(data);if(p.type==='content_block_delta'&&p.delta?.text){fullText+=p.delta.text;renderStream(doc,fullText);}}catch{}
+      }
+    }
+    resultRaw=fullText;
+    renderFinal(doc,fullText);
+    switchTab(currentTab);
+    document.getElementById('copyBtn').disabled=false;
+    document.getElementById('printBtn').disabled=false;
+  }catch(err){
+    document.getElementById('emptyState').style.display='flex';
+    document.getElementById('resultDoc').style.display='none';
+    showErr('審查失敗：'+err.message);
+  }
+  reviewing=false;
+  document.getElementById('progressBar').classList.remove('show');
+  checkReady();
+}
+
+function renderBanner(){
+  const date=new Date().toLocaleDateString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit'});
+  return `<div class="review-banner"><div class="banner-left"><h2>提案審查意見書</h2><div class="banner-meta"><span class="meta-item">📅 ${date}</span><span class="meta-item">📋 ${esc(files[1]?.name||'徵求文件')}</span><span class="meta-item">📁 ${esc(files[2]?.name||'提案文件')}</span></div></div><div id="verdictBadge"></div></div><div id="sectionsContainer"></div>`;
+}
+
+function renderStream(doc,text){
+  const c=doc.querySelector('#sectionsContainer');
+  if(!c)return;
+  const rx=/【([^】]+)】\s*([\s\S]*?)(?=【|$)/g;
+  const matches=[...text.matchAll(rx)];
+  if(!matches.length){c.innerHTML=`<div class="stream-box">${esc(text)}</div>`;return;}
+  c.innerHTML=matches.map(m=>buildSection(m[1].trim(),m[2].trim())).join('');
+}
+
+function renderFinal(doc,text){
+  renderStream(doc,text);
+  const verdict=text.includes('建議通過')&&!text.includes('退件')?{text:'建議通過',cls:'verdict-pass'}:text.includes('補件修正')||text.includes('修正後再審')?{text:'補件修正後再審',cls:'verdict-warn'}:text.includes('建議退件')?{text:'建議退件',cls:'verdict-fail'}:null;
+  const badge=doc.querySelector('#verdictBadge');
+  if(badge&&verdict)badge.innerHTML=`<div class="verdict-badge ${verdict.cls}">${verdict.text}</div>`;
+}
+
+function buildSection(title,body){
+  const{tag,cat}=classify(title);
+  const lines=body.split('\n').map(l=>l.trim()).filter(Boolean);
+  const isIssue=title.includes('不符合')||title.includes('矛盾')||title.includes('一致性')||title.includes('發現');
+  const bodyHtml=isIssue?buildIssueList(lines):buildPlain(lines);
+  return `<div class="rsection" data-category="${cat}"><div class="rsection-head"><span class="rtag ${tag.cls}">${tag.label}</span><span class="rsection-title">${esc(title)}</span>${lines.length?`<span class="rsection-count">${lines.length} 項</span>`:''}</div><div class="rsection-body">${bodyHtml}</div></div>`;
+}
+
+function classify(title){
+  if(title.includes('摘要')||title.includes('結論'))return{tag:{cls:'rtag-summary',label:'摘要'},cat:'all'};
+  if(title.includes('符合')&&!title.includes('不符'))return{tag:{cls:'rtag-comply',label:'符合'},cat:'comply'};
+  if(title.includes('不符合')||title.includes('未回應'))return{tag:{cls:'rtag-noncomply',label:'不符合'},cat:'comply'};
+  if(title.includes('一致')||title.includes('矛盾')||title.includes('4.2'))return{tag:{cls:'rtag-inconsist',label:'一致性'},cat:'inconsist'};
+  if(title.includes('發現')||title.includes('4.3')||title.includes('風險')||title.includes('亮點'))return{tag:{cls:'rtag-finding',label:'發現'},cat:'finding'};
+  return{tag:{cls:'rtag-neutral',label:'說明'},cat:'all'};
+}
+
+function buildIssueList(lines){
+  if(!lines.length)return`<div class="stream-box" style="color:var(--green)">✓ 本項無發現問題</div>`;
+  let html='',issueLines=[],num=0;
+  lines.forEach(line=>{
+    const isH=/^[\d一二三四五六七八九十]+[\.、\)）]/.test(line)||/^[·•\-]/.test(line);
+    if(isH&&issueLines.length){html+=buildCard(++num,issueLines);issueLines=[];}
+    issueLines.push(line);
+  });
+  if(issueLines.length)html+=buildCard(++num,issueLines);
+  return html||`<div class="stream-box">${lines.map(l=>esc(l)).join('<br>')}</div>`;
+}
+
+function buildCard(num,lines){
+  const raw=lines.join(' ');
+  const title=lines[0].replace(/^[\d一二三四五六七八九十]+[\.、\)）·•\-]\s*/,'').trim();
+  const rest=lines.slice(1);
+  const locM=raw.match(/[第p\.]?\s*(\d+)\s*[頁章節]/i)||raw.match(/p\.?\s*(\d+)/i);
+  const loc=locM?`頁 ${locM[1]}`:(raw.includes('章')?raw.match(/第[一二三四五六七八九十\d]+章[^，。、\n]*/)?.[0]||'':'');
+  return `<div class="issue-item"><div class="issue-head"><span class="issue-num">${String(num).padStart(2,'0')}</span><span class="issue-title">${esc(title)}</span>${loc?`<span class="issue-loc">${esc(loc)}</span>`:''}</div>${rest.length?`<div class="issue-body">${rest.map(l=>esc(l.replace(/^[\-·•]\s*/, ''))).join('<br>')}</div>`:''}</div>`;
+}
+
+function buildPlain(lines){
+  if(!lines.length)return'';
+  if(lines.length===1)return`<div class="stream-box">${esc(lines[0])}</div>`;
+  return`<div class="stream-box">${lines.map(l=>'▸ '+esc(l.replace(/^[·•\-\d\.、]+\s*/, ''))).join('<br>')}</div>`;
+}
+
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function doCopy(){if(resultRaw){navigator.clipboard.writeText(resultRaw).then(()=>{const b=document.getElementById('copyBtn');b.textContent='已複製 ✓';setTimeout(()=>b.textContent='複製',2000);});}}
+</script>
+</body>
+</html>

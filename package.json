@@ -1,0 +1,6 @@
+{
+  "name": "proposal-reviewer",
+  "version": "1.0.0",
+  "description": "提案審查分析系統",
+  "engines": { "node": ">=18" }
+}
